@@ -24,7 +24,6 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "helm-template.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -33,6 +32,16 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+          {{- range .Values.env }}
+            - name: {{ .name }}
+              value: {{ .value }}
+          {{- end }}
+          {{- if .Values.persistence.enabled -}}
+          volumeMounts:
+            - mountPath: {{ .Values.persistence.containerDirectory }}
+              name: storage
+          {{ end }}
           ports:
             - name: http
               containerPort: 80
@@ -47,6 +56,20 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.persistence.enabled -}}
+      volumes:
+        - name: storage
+      {{- if .Values.persistence.emptyDir -}}
+          emptyDir: {}
+      {{- else if .Values.persistence.hostPath -}}
+          hostPath:
+            path: {{ .Values.persistence.hostPathDirectory }}
+            type: Directory
+      {{ else }}
+          persistentVolumeClaim:
+            claimName: {{ include "helm-template.fullname" . }}
+      {{ end }}
+      {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
